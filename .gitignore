@@ -1,0 +1,11 @@
+*swp
+.DS_Store
+
+.build
+.cipd
+.gclient_entries
+
+c.out
+deps/windows_x86_64
+deps/linux_x86_64
+deps/darwin_x86_64
