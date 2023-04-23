@@ -19,6 +19,74 @@ type Object struct {
 	*Value
 }
 
+func (o *Object) MethodCall(methodName string, args ...Valuer) (*Value, error) {
+	ckey := C.CString(methodName)
+	defer C.free(unsafe.Pointer(ckey))
+
+	getRtn := C.ObjectGet(o.ptr, ckey)
+
+	prop, err := valueResult(o.ctx, getRtn)
+	if err != nil {
+		return nil, err
+	}
+	fn, err := prop.AsFunction()
+	if err != nil {
+		return nil, err
+	}
+
+	return fn.Call(o, args...)
+}
+
+func coerceValue(iso *Isolate, val interface{}) (*Value, error) {
+	switch v := val.(type) {
+	case string, int32, uint32, int64, uint64, float64, bool, *big.Int:
+		// ignoring error as code cannot reach the error state as we are already
+		// validating the new value types in this case statement
+		value, _ := NewValue(iso, v)
+		return value, nil
+	case Valuer:
+		return v.value(), nil
+	default:
+		return nil, fmt.Errorf("v8go: unsupported object property type `%T`", v)
+	}
+}
+
+// SetInternalField sets the value of an internal field for an ObjectTemplate instance.
+// Panics if the index isn't in the range set by (*ObjectTemplate).SetInternalFieldCount.
+func (o *Object) SetInternalField(idx uint32, val interface{}) error {
+	value, err := coerceValue(o.ctx.iso, val)
+
+	if err != nil {
+		return err
+	}
+
+	inserted := C.ObjectSetInternalField(o.ptr, C.int(idx), value.ptr)
+
+	if inserted == 0 {
+		panic(fmt.Errorf("index out of range [%v] with length %v", idx, o.InternalFieldCount()))
+	}
+
+	return nil
+}
+
+// InternalFieldCount returns the number of internal fields this Object has.
+func (o *Object) InternalFieldCount() uint32 {
+	count := C.ObjectInternalFieldCount(o.ptr)
+	return uint32(count)
+}
+
+// GetInternalField gets the Value set by SetInternalField for the given index
+// or the JS undefined value if the index hadn't been set.
+// Panics if given an out of range index.
+func (o *Object) GetInternalField(idx uint32) *Value {
+	rtn := C.ObjectGetInternalField(o.ptr, C.int(idx))
+	if rtn == nil {
+		panic(fmt.Errorf("index out of range [%v] with length %v", idx, o.InternalFieldCount()))
+	}
+	return &Value{rtn, o.ctx}
+
+}
+
 // Set will set a property on the Object to a given value.
 // Supports all value types, eg: Object, Array, Date, Set, Map etc
 // If the value passed is a Go supported primitive (string, int32, uint32, int64, uint64, float64, big.Int)
@@ -50,7 +118,6 @@ func set(o *Object, key string, idx uint32, val interface{}) error {
 	default:
 		return fmt.Errorf("v8go: unsupported object property type `%T`", v)
 	}
-
 	if len(key) > 0 {
 		ckey := C.CString(key)
 		defer C.free(unsafe.Pointer(ckey))

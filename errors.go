@@ -4,9 +4,14 @@
 
 package v8go
 
+// #include <stdlib.h>
+// #include "v8go.h"
+import "C"
+
 import (
 	"fmt"
 	"io"
+	"unsafe"
 )
 
 // JSError is an error that is returned if there is are any
@@ -21,7 +26,17 @@ type JSError struct {
 func (e *JSError) Error() string {
 	return e.Message
 }
-
+func newJSError(rtnErr C.RtnError) error {
+	err := &JSError{
+		Message:    C.GoString(rtnErr.msg),
+		Location:   C.GoString(rtnErr.location),
+		StackTrace: C.GoString(rtnErr.stack),
+	}
+	C.free(unsafe.Pointer(rtnErr.msg))
+	C.free(unsafe.Pointer(rtnErr.location))
+	C.free(unsafe.Pointer(rtnErr.stack))
+	return err
+}
 // Format implements the fmt.Formatter interface to provide a custom formatter
 // primarily to output the javascript stack trace with %+v
 func (e *JSError) Format(s fmt.State, verb rune) {

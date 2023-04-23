@@ -31,6 +31,25 @@ func (v *Value) value() *Value {
 	return v
 }
 
+func newValueNull(iso *Isolate) *Value {
+	return &Value{
+		ptr: C.NewValueNull(iso.ptr),
+	}
+}
+
+func newValueUndefined(iso *Isolate) *Value {
+	return &Value{
+		ptr: C.NewValueUndefined(iso.ptr),
+	}
+}
+// Null returns the `null` JS value
+func Null(iso *Isolate) *Value {
+	return iso.null
+}
+// Undefined returns the `undefined` JS value
+func Undefined(iso *Isolate) *Value {
+	return iso.undefined
+}
 // NewValue will create a primitive value. Supported values types to create are:
 //   string -> V8::String
 //   int32 -> V8::Integer
@@ -542,4 +561,14 @@ func (v *Value) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	return []byte(jsonStr), nil
+}
+// Uint8Array as bytes
+func (v *Value) Uint8Array() []uint8 {
+	bytes := unsafe.Pointer(C.ValueToUint8Array(v.ptr)) // allocates copy on the heap
+	defer C.free(bytes)
+	return C.GoBytes(bytes, C.int(C.ValueToArrayLength(v.ptr)))
+}
+// Release this value.  Using the value after calling this function will result in undefined behavior.
+func (v *Value) Release() {
+	C.ValueRelease(v.ptr)
 }

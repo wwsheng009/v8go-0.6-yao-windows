@@ -8,7 +8,6 @@ package v8go
 // #include "v8go.h"
 import "C"
 import (
-	"fmt"
 	"sync"
 	"unsafe"
 )
@@ -47,7 +46,7 @@ type ContextOption interface {
 
 // NewContext creates a new JavaScript context; if no Isolate is passed as a
 // ContextOption than a new Isolate will be created.
-func NewContext(opt ...ContextOption) (*Context, error) {
+func NewContext(opt ...ContextOption) *Context {
 	opts := contextOptions{}
 	for _, o := range opt {
 		if o != nil {
@@ -56,11 +55,7 @@ func NewContext(opt ...ContextOption) (*Context, error) {
 	}
 
 	if opts.iso == nil {
-		var err error
-		opts.iso, err = NewIsolate()
-		if err != nil {
-			return nil, fmt.Errorf("v8go: failed to create new Isolate: %v", err)
-		}
+		opts.iso = NewIsolate()
 	}
 
 	if opts.gTmpl == nil {
@@ -78,14 +73,20 @@ func NewContext(opt ...ContextOption) (*Context, error) {
 		iso: opts.iso,
 	}
 	// TODO: [RC] catch any C++ exceptions and return as error
-	return ctx, nil
+	return ctx
 }
 
 // Isolate gets the current context's parent isolate.An  error is returned
 // if the isolate has been terninated.
-func (c *Context) Isolate() (*Isolate, error) {
+func (c *Context) IsolateXXXXXXXXXXXX() (*Isolate, error) {
 	// TODO: [RC] check to see if the isolate has not been terninated
 	return c.iso, nil
+}
+
+// Isolate gets the current context's parent isolate.An  error is returned
+// if the isolate has been terninated.
+func (c *Context) Isolate() *Isolate {
+	return c.iso
 }
 
 // RunScript executes the source JavaScript; origin or filename provides a
@@ -173,9 +174,11 @@ func goContext(ref int) C.ContextPtr {
 }
 
 func getValue(ctx *Context, rtn C.RtnValue) *Value {
+	//	fmt.Println("-----------------------contex.go.getValue,rtn.value=", rtn.value, ";ctx=", ctx, ";return=", &Value{rtn.value, ctx})
 	if rtn.value == nil {
 		return nil
 	}
+
 	return &Value{rtn.value, ctx}
 }
 
@@ -192,4 +195,10 @@ func getError(rtn C.RtnValue) error {
 	C.free(unsafe.Pointer(rtn.error.location))
 	C.free(unsafe.Pointer(rtn.error.stack))
 	return err
+}
+func valueResult(ctx *Context, rtn C.RtnValue) (*Value, error) {
+	if rtn.value == nil {
+		return nil, newJSError(rtn.error)
+	}
+	return &Value{rtn.value, ctx}, nil
 }

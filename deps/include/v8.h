@@ -8121,10 +8121,11 @@ using JitCodeEventHandler = void (*)(const JitCodeEvent* event);
 /**
  * Callback function passed to SetUnhandledExceptionCallback.
  */
-#if defined(V8_OS_WIN)
-using UnhandledExceptionCallback =
-    int (*)(_EXCEPTION_POINTERS* exception_pointers);
-#endif
+// #if defined(V8_OS_WIN)
+// using UnhandledExceptionCallback =  int (*)(_EXCEPTION_POINTERS* exception_pointers);
+// #endif
+
+
 
 /**
  * Interface for iterating through all external resources in the heap.
@@ -10064,8 +10065,8 @@ class V8_EXPORT V8 {
    * This function allows embedders to register a custom exception handler for
    * exceptions in V8-generated code.
    */
-  static void SetUnhandledExceptionCallback(
-      UnhandledExceptionCallback unhandled_exception_callback);
+  // static void SetUnhandledExceptionCallback(
+  //     UnhandledExceptionCallback unhandled_exception_callback);
 #endif
 
   /**

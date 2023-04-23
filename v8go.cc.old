@@ -18,11 +18,6 @@
 struct _EXCEPTION_POINTERS;
 #endif
 
-#if defined(V8_OS_WIN)
-struct _EXCEPTION_POINTERS;
-#endif
-
-
 #include "libplatform/libplatform.h"
 #include "v8.h"
 
@@ -31,22 +26,13 @@ using namespace v8;
 auto default_platform = platform::NewDefaultPlatform();
 auto default_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
 
-const int ScriptCompilerNoCompileOptions = ScriptCompiler::kNoCompileOptions;
-const int ScriptCompilerConsumeCodeCache = ScriptCompiler::kConsumeCodeCache;
-const int ScriptCompilerEagerCompile = ScriptCompiler::kEagerCompile;
-struct m_unboundScript {
-  Persistent<UnboundScript> ptr;
-};
-
 typedef struct {
   Isolate* iso;
   std::vector<ValuePtr> vals;
-  std::vector<m_unboundScript*> unboundScripts;
   Persistent<Context> ptr;
 } m_ctx;
 
 typedef struct {
-  long id;
   Isolate* iso;
   m_ctx* ctx;
   Persistent<Value, CopyablePersistentTraits<Value>> ptr;
@@ -135,26 +121,16 @@ ValuePtr tracked_value(m_ctx* ctx, m_value* val) {
 
   return val_ptr;
 }
-m_unboundScript* tracked_unbound_script(m_ctx* ctx, m_unboundScript* us) {
-  ctx->unboundScripts.push_back(us);
-
-  return us;
-}
 
 extern "C" {
 
 /********** Isolate **********/
 
-#define ISOLATE_SCOPE(iso)           \
-  Locker locker(iso);                \
-  Isolate::Scope isolate_scope(iso); \
+#define ISOLATE_SCOPE(iso_ptr)                   \
+  Isolate* iso = static_cast<Isolate*>(iso_ptr); \
+  Locker locker(iso);                            \
+  Isolate::Scope isolate_scope(iso);             \
   HandleScope handle_scope(iso);
-
-
-#define ISOLATE_SCOPE_INTERNAL_CONTEXT(iso) \
-  ISOLATE_SCOPE(iso);                       \
-  m_ctx* ctx = isolateInternalContext(iso);
-
 
 void Init() {
 #ifdef _WIN32
@@ -184,13 +160,8 @@ IsolatePtr NewIsolate() {
   return static_cast<IsolatePtr>(iso);
 }
 
-
-static inline m_ctx* isolateInternalContext(Isolate* iso) {
-  return static_cast<m_ctx*>(iso->GetData(0));
-}
-
-void IsolatePerformMicrotaskCheckpoint(IsolatePtr iso) {
-  ISOLATE_SCOPE(iso)
+void IsolatePerformMicrotaskCheckpoint(IsolatePtr ptr) {
+  ISOLATE_SCOPE(ptr)
   iso->PerformMicrotaskCheckpoint();
 }
 
@@ -231,11 +202,10 @@ IsolateHStatistics IsolationGetHeapStatistics(IsolatePtr ptr) {
 }
 
 
-
 /********** Exceptions & Errors **********/
 
-ValuePtr IsolateThrowException(IsolatePtr iso, ValuePtr val_ptr) {
-  ISOLATE_SCOPE(iso);
+ValuePtr IsolateThrowException(IsolatePtr iso_ptr, ValuePtr val_ptr) {
+  ISOLATE_SCOPE(iso_ptr);
   m_value* val = static_cast<m_value*>(val_ptr);
   m_ctx* ctx = val->ctx;
 
@@ -336,8 +306,8 @@ int ObjectTemplateInternalFieldCount(TemplatePtr ptr) {
 /********** FunctionTemplate **********/
 
 static void FunctionTemplateCallback(const FunctionCallbackInfo<Value>& info) {
-  Isolate* iso = info.GetIsolate();
-  ISOLATE_SCOPE(iso);
+  Isolate* iso_ptr = info.GetIsolate();
+  ISOLATE_SCOPE(iso_ptr);
 
   // This callback function can be called from any Context, which we only know
   // at runtime. We extract the Context reference from the embedder data so that
@@ -350,17 +320,8 @@ static void FunctionTemplateCallback(const FunctionCallbackInfo<Value>& info) {
 
   int callback_ref = info.Data().As<Integer>()->Value();
 
-  m_value* _this = new m_value;
-  _this->id = 0;
-  _this->iso = iso;
-  _this->ctx = ctx;
-  _this->ptr.Reset(iso, Persistent<Value, CopyablePersistentTraits<Value>>(
-                            iso, info.This()));
-
   int args_count = info.Length();
-  ValuePtr thisAndArgs[args_count+1];
-  thisAndArgs[0] = tracked_value(ctx, _this);
-  ValuePtr* args = thisAndArgs + 1;
+  ValuePtr args[args_count];
   for (int i = 0; i < args_count; i++) {
     m_value* val = new m_value;
     val->iso = iso;
@@ -373,7 +334,7 @@ static void FunctionTemplateCallback(const FunctionCallbackInfo<Value>& info) {
   ValuePtr goFunctionCallback(int ctxref, int cbref, const ValuePtr* args,
                               int args_count);
   ValuePtr val_ptr =
-      goFunctionCallback(ctx_ref, callback_ref, thisAndArgs, args_count);
+      goFunctionCallback(ctx_ref, callback_ref, args, args_count);
   if (val_ptr != nullptr) {
     m_value* val = static_cast<m_value*>(val_ptr);
     info.GetReturnValue().Set(val->ptr.Get(iso));
@@ -419,7 +380,7 @@ ValuePtr FunctionTemplateGetFunction(TemplatePtr ptr, ContextPtr ctx_ptr) {
 
 /********** Context **********/
 
-#define LOCAL_CONTEXT(ctx_ptr)                      \
+#define LOCAL_CONTEXT(ctx_ptr)                  \
   m_ctx* ctx = static_cast<m_ctx*>(ctx_ptr);    \
   Isolate* iso = ctx->iso;                      \
   Locker locker(iso);                           \
@@ -428,9 +389,6 @@ ValuePtr FunctionTemplateGetFunction(TemplatePtr ptr, ContextPtr ctx_ptr) {
   TryCatch try_catch(iso);                      \
   Local<Context> local_ctx = ctx->ptr.Get(iso); \
   Context::Scope context_scope(local_ctx);
-
-
-
 
 ContextPtr NewContext(IsolatePtr iso_ptr,
                       TemplatePtr global_template_ptr,
@@ -569,7 +527,6 @@ const char* JSONStringify(ContextPtr ctx_ptr, ValuePtr val_ptr) {
   return CopyString(json);
 }
 
-
 ValuePtr ContextGlobal(ContextPtr ctx_ptr) {
   LOCAL_CONTEXT(ctx_ptr);
   m_value* val = new m_value;
@@ -602,106 +559,12 @@ ValuePtr ContextGlobal(ContextPtr ctx_ptr) {
   Context::Scope context_scope(local_ctx);      \
   Local<Value> value = val->ptr.Get(iso);
 
+#define ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr) \
+  ISOLATE_SCOPE(iso_ptr);                       \
+  m_ctx* ctx = static_cast<m_ctx*>(iso->GetData(0));
 
-
-RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso,
-                                             const char* s,
-                                             const char* o,
-                                             CompileOptions opts) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
-  TryCatch try_catch(iso);
-  Local<Context> local_ctx = ctx->ptr.Get(iso);
-  Context::Scope context_scope(local_ctx);
-
-  RtnUnboundScript rtn = {};
-
-  Local<String> src =
-      String::NewFromUtf8(iso, s, NewStringType::kNormal).ToLocalChecked();
-  Local<String> ogn =
-      String::NewFromUtf8(iso, o, NewStringType::kNormal).ToLocalChecked();
-
-  ScriptCompiler::CompileOptions option =
-      static_cast<ScriptCompiler::CompileOptions>(opts.compileOption);
-
-  ScriptCompiler::CachedData* cached_data = nullptr;
-
-  if (opts.cachedData.data) {
-    cached_data = new ScriptCompiler::CachedData(opts.cachedData.data,
-                                                 opts.cachedData.length);
-  }
-
-  ScriptOrigin script_origin(ogn);
-
-  ScriptCompiler::Source source(src, script_origin, cached_data);
-
-  Local<UnboundScript> unbound_script;
-  if (!ScriptCompiler::CompileUnboundScript(iso, &source, option)
-           .ToLocal(&unbound_script)) {
-    rtn.error = ExceptionError(try_catch, iso, local_ctx);
-    return rtn;
-  };
-
-  if (cached_data) {
-    rtn.cachedDataRejected = cached_data->rejected;
-  }
-
-  m_unboundScript* us = new m_unboundScript;
-  us->ptr.Reset(iso, unbound_script);
-  rtn.ptr = tracked_unbound_script(ctx, us);
-  return rtn;
-}
-
-/********** UnboundScript & ScriptCompilerCachedData **********/
-
-void ScriptCompilerCachedDataDelete(ScriptCompilerCachedData* cached_data) {
-  delete cached_data->ptr;
-  delete cached_data;
-}
-ScriptCompilerCachedData* UnboundScriptCreateCodeCache(
-    IsolatePtr iso,
-    UnboundScriptPtr us_ptr) {
-  ISOLATE_SCOPE(iso);
-
-  Local<UnboundScript> unbound_script = us_ptr->ptr.Get(iso);
-
-  ScriptCompiler::CachedData* cached_data =
-      ScriptCompiler::CreateCodeCache(unbound_script);
-
-  ScriptCompilerCachedData* cd = new ScriptCompilerCachedData;
-  cd->ptr = cached_data;
-  cd->data = cached_data->data;
-  cd->length = cached_data->length;
-  cd->rejected = cached_data->rejected;
-  return cd;
-}
-
-// This can only run in contexts that belong to the same isolate
-// the script was compiled in
-RtnValue UnboundScriptRun(ContextPtr ctx_ptr, UnboundScriptPtr us_ptr) {
-  LOCAL_CONTEXT(ctx_ptr)
-
-  RtnValue rtn = {};
-
-  Local<UnboundScript> unbound_script = us_ptr->ptr.Get(iso);
-
-  Local<Script> script = unbound_script->BindToCurrentContext();
-  Local<Value> result;
-  if (!script->Run(local_ctx).ToLocal(&result)) {
-    rtn.error = ExceptionError(try_catch, iso, local_ctx);
-    return rtn;
-  }
-  m_value* val = new m_value;
-  val->id = 0;
-  val->iso = iso;
-  val->ctx = ctx;
-  val->ptr = Persistent<Value, CopyablePersistentTraits<Value>>(iso, result);
-
-  rtn.value = tracked_value(ctx, val);
-  return rtn;
-}
-
-ValuePtr NewValueInteger(IsolatePtr iso, int32_t v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueInteger(IsolatePtr iso_ptr, int32_t v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -710,8 +573,8 @@ ValuePtr NewValueInteger(IsolatePtr iso, int32_t v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueIntegerFromUnsigned(IsolatePtr iso, uint32_t v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueIntegerFromUnsigned(IsolatePtr iso_ptr, uint32_t v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -720,8 +583,8 @@ ValuePtr NewValueIntegerFromUnsigned(IsolatePtr iso, uint32_t v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueString(IsolatePtr iso, const char* v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueString(IsolatePtr iso_ptr, const char* v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -730,16 +593,16 @@ ValuePtr NewValueString(IsolatePtr iso, const char* v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueNull(IsolatePtr iso) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueNull(IsolatePtr iso_ptr) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
   val->ptr = Persistent<Value, CopyablePersistentTraits<Value>>(iso, Null(iso));
   return tracked_value(ctx, val);
 }
-ValuePtr NewValueUndefined(IsolatePtr iso) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueUndefined(IsolatePtr iso_ptr) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -749,8 +612,8 @@ ValuePtr NewValueUndefined(IsolatePtr iso) {
 }
 
 
-ValuePtr NewValueBoolean(IsolatePtr iso, int v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueBoolean(IsolatePtr iso_ptr, int v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -759,8 +622,8 @@ ValuePtr NewValueBoolean(IsolatePtr iso, int v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueNumber(IsolatePtr iso, double v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueNumber(IsolatePtr iso_ptr, double v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -769,8 +632,8 @@ ValuePtr NewValueNumber(IsolatePtr iso, double v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueBigInt(IsolatePtr iso, int64_t v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueBigInt(IsolatePtr iso_ptr, int64_t v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -779,8 +642,8 @@ ValuePtr NewValueBigInt(IsolatePtr iso, int64_t v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueBigIntFromUnsigned(IsolatePtr iso, uint64_t v) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+ValuePtr NewValueBigIntFromUnsigned(IsolatePtr iso_ptr, uint64_t v) {
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
   m_value* val = new m_value;
   val->iso = iso;
   val->ctx = ctx;
@@ -789,11 +652,11 @@ ValuePtr NewValueBigIntFromUnsigned(IsolatePtr iso, uint64_t v) {
   return tracked_value(ctx, val);
 }
 
-ValuePtr NewValueBigIntFromWords(IsolatePtr iso,
+ValuePtr NewValueBigIntFromWords(IsolatePtr iso_ptr,
                                  int sign_bit,
                                  int word_count,
                                  const uint64_t* words) {
-  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso);
+  ISOLATE_SCOPE_INTERNAL_CONTEXT(iso_ptr);
 
   m_value* val = new m_value;
   val->iso = iso;
@@ -810,15 +673,6 @@ void ValueFree(ValuePtr ptr) {
     return;
   }
   m_value* val = static_cast<m_value*>(ptr);
-  val->ptr.Reset();
-  delete val;
-}
-void ValueRelease(ValuePtr ptr) {
-  if (ptr == nullptr) {
-    return;
-  }
-  m_value* val = static_cast<m_value*>(ptr);
-  //val->ctx->vals.erase(val->id);
   val->ptr.Reset();
   delete val;
 }
@@ -900,22 +754,6 @@ ValuePtr ValueToObject(ValuePtr ptr) {
 int ValueIsUndefined(ValuePtr ptr) {
   LOCAL_VALUE(ptr);
   return value->IsUndefined();
-}
-uint8_t* ValueToUint8Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
-  MaybeLocal<Uint8Array> array = value.As<Uint8Array>();
-  int length = array.ToLocalChecked()->ByteLength();
-  uint8_t* bytes = new uint8_t[length];
-  memcpy(bytes, array.ToLocalChecked()->Buffer()->GetBackingStore()->Data(), length);
-  return bytes;
-}
-
-
-// Returns length of the array (number of elements, not number of bytes)
-uint64_t ValueToArrayLength(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
-  MaybeLocal<TypedArray> array = value.As<TypedArray>();
-  return array.ToLocalChecked()->Length();
 }
 
 int ValueIsNull(ValuePtr ptr) {
@@ -1469,8 +1307,8 @@ RtnValue FunctionCall(ValuePtr ptr, ValuePtr recv_ptr, int argc, ValuePtr args[]
 }
 /******** Exceptions *********/
 
-ValuePtr ExceptionError(IsolatePtr iso, const char* message) {
-  ISOLATE_SCOPE(iso);
+ValuePtr ExceptionError(IsolatePtr iso_ptr, const char* message) {
+  ISOLATE_SCOPE(iso_ptr);
   Local<String> msg = String::NewFromUtf8(iso, message).ToLocalChecked();
   m_value* val = new m_value;
   val->iso = iso;
@@ -1483,8 +1321,8 @@ ValuePtr ExceptionError(IsolatePtr iso, const char* message) {
   return static_cast<ValuePtr>(val);
 }
 
-ValuePtr ExceptionRangeError(IsolatePtr iso, const char* message) {
-  ISOLATE_SCOPE(iso);
+ValuePtr ExceptionRangeError(IsolatePtr iso_ptr, const char* message) {
+  ISOLATE_SCOPE(iso_ptr);
   Local<String> msg = String::NewFromUtf8(iso, message, NewStringType::kNormal)
                           .ToLocalChecked();
   m_value* val = new m_value;
@@ -1495,8 +1333,8 @@ ValuePtr ExceptionRangeError(IsolatePtr iso, const char* message) {
   return static_cast<ValuePtr>(val);
 }
 
-ValuePtr ExceptionReferenceError(IsolatePtr iso, const char* message) {
-  ISOLATE_SCOPE(iso);
+ValuePtr ExceptionReferenceError(IsolatePtr iso_ptr, const char* message) {
+  ISOLATE_SCOPE(iso_ptr);
   Local<String> msg = String::NewFromUtf8(iso, message, NewStringType::kNormal)
                           .ToLocalChecked();
   m_value* val = new m_value;
@@ -1507,8 +1345,8 @@ ValuePtr ExceptionReferenceError(IsolatePtr iso, const char* message) {
   return static_cast<ValuePtr>(val);
 }
 
-ValuePtr ExceptionSyntaxError(IsolatePtr iso, const char* message) {
-  ISOLATE_SCOPE(iso);
+ValuePtr ExceptionSyntaxError(IsolatePtr iso_ptr, const char* message) {
+  ISOLATE_SCOPE(iso_ptr);
   Local<String> msg = String::NewFromUtf8(iso, message, NewStringType::kNormal)
                           .ToLocalChecked();
   m_value* val = new m_value;
@@ -1519,8 +1357,8 @@ ValuePtr ExceptionSyntaxError(IsolatePtr iso, const char* message) {
   return static_cast<ValuePtr>(val);
 }
 
-ValuePtr ExceptionTypeError(IsolatePtr iso, const char* message) {
-  ISOLATE_SCOPE(iso);
+ValuePtr ExceptionTypeError(IsolatePtr iso_ptr, const char* message) {
+  ISOLATE_SCOPE(iso_ptr);
   Local<String> msg = String::NewFromUtf8(iso, message, NewStringType::kNormal)
                           .ToLocalChecked();
   m_value* val = new m_value;

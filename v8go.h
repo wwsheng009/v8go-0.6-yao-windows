@@ -6,16 +6,45 @@
 #define V8GO_H
 #ifdef __cplusplus
 
+#include "libplatform/libplatform.h"
+#include "v8-profiler.h"
+#include "v8.h"
+typedef v8::Isolate* IsolatePtr;
+typedef v8::ScriptCompiler::CachedData* ScriptCompilerCachedDataPtr;
+
 extern "C" {
+#else
+// Opaque to cgo, but useful to treat it as a pointer to a distinct type
+typedef struct v8Isolate v8Isolate;
+typedef v8Isolate* IsolatePtr;
+typedef struct v8ScriptCompilerCachedData v8ScriptCompilerCachedData;
+typedef const v8ScriptCompilerCachedData* ScriptCompilerCachedDataPtr;
 #endif
 
 #include <stddef.h>
 #include <stdint.h>
 
-typedef void* IsolatePtr;
-typedef void* ContextPtr;
-typedef void* ValuePtr;
-typedef void* TemplatePtr;
+
+
+extern const int ScriptCompilerNoCompileOptions;
+extern const int ScriptCompilerConsumeCodeCache;
+extern const int ScriptCompilerEagerCompile;
+
+
+typedef struct m_unboundScript m_unboundScript;
+typedef m_unboundScript* UnboundScriptPtr;
+
+typedef struct {
+  ScriptCompilerCachedDataPtr ptr;
+  const uint8_t* data;
+  int length;
+  int rejected;
+} ScriptCompilerCachedData;
+
+typedef struct {
+  ScriptCompilerCachedData cachedData;
+  int compileOption;
+} CompileOptions;
 
 typedef struct {
   const char* msg;
@@ -24,9 +53,26 @@ typedef struct {
 } RtnError;
 
 typedef struct {
+  UnboundScriptPtr ptr;
+  int cachedDataRejected;
+  RtnError error;
+} RtnUnboundScript;
+
+
+
+//typedef void* IsolatePtr;
+
+typedef void* ContextPtr;
+typedef void* ValuePtr;
+typedef void* TemplatePtr;
+
+
+typedef struct {
   ValuePtr value;
   RtnError error;
 } RtnValue;
+
+
 
 typedef struct {
   size_t total_heap_size;
@@ -48,12 +94,27 @@ typedef struct {
   int sign_bit;
 } ValueBigInt;
 
+
+extern RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso_ptr,
+                                                    const char* source,
+                                                    const char* origin,
+                                                    CompileOptions options);
+
 extern void Init();
 extern IsolatePtr NewIsolate();
 extern void IsolatePerformMicrotaskCheckpoint(IsolatePtr ptr);
 extern void IsolateDispose(IsolatePtr ptr);
 extern void IsolateTerminateExecution(IsolatePtr ptr);
 extern IsolateHStatistics IsolationGetHeapStatistics(IsolatePtr ptr);
+
+extern ValuePtr IsolateThrowException(IsolatePtr iso, ValuePtr value);
+extern void ScriptCompilerCachedDataDelete(
+    ScriptCompilerCachedData* cached_data);
+
+extern ScriptCompilerCachedData* UnboundScriptCreateCodeCache(
+    IsolatePtr iso_ptr,
+    UnboundScriptPtr us_ptr);
+extern RtnValue UnboundScriptRun(ContextPtr ctx_ptr, UnboundScriptPtr us_ptr);
 
 extern ContextPtr NewContext(IsolatePtr iso_ptr,
                              TemplatePtr global_template_ptr,
@@ -82,6 +143,12 @@ extern ValuePtr ObjectTemplateNewInstance(TemplatePtr ptr, ContextPtr ctx_ptr);
 extern TemplatePtr NewFunctionTemplate(IsolatePtr iso_ptr, int callback_ref);
 extern ValuePtr FunctionTemplateGetFunction(TemplatePtr ptr, ContextPtr ctx_ptr);
 
+extern void ObjectTemplateSetInternalFieldCount(TemplatePtr ptr,
+                                                int field_count);
+extern int ObjectTemplateInternalFieldCount(TemplatePtr ptr);
+
+extern ValuePtr NewValueNull(IsolatePtr iso_ptr);
+extern ValuePtr NewValueUndefined(IsolatePtr iso_ptr);
 extern ValuePtr NewValueInteger(IsolatePtr iso_ptr, int32_t v);
 extern ValuePtr NewValueIntegerFromUnsigned(IsolatePtr iso_ptr, uint32_t v);
 extern ValuePtr NewValueString(IsolatePtr iso_ptr, const char* v);
@@ -93,6 +160,11 @@ extern ValuePtr NewValueBigIntFromWords(IsolatePtr iso_ptr,
                                         int sign_bit,
                                         int word_count,
                                         const uint64_t* words);
+
+void ValueRelease(ValuePtr ptr);
+extern uint8_t* ValueToUint8Array(ValuePtr ptr);
+extern uint64_t ValueToArrayLength(ValuePtr ptr);
+
 extern void ValueFree(ValuePtr ptr);
 const char* ValueToString(ValuePtr ptr);
 const uint32_t* ValueToArrayIndex(ValuePtr ptr);
@@ -159,6 +231,11 @@ int ValueIsProxy(ValuePtr ptr);
 int ValueIsWasmModuleObject(ValuePtr ptr);
 int ValueIsModuleNamespaceObject(ValuePtr ptr);
 
+extern ValuePtr ObjectGetInternalField(ValuePtr ptr, int idx);
+extern int ObjectSetInternalField(ValuePtr ptr, int idx, ValuePtr val_ptr);
+extern int ObjectInternalFieldCount(ValuePtr ptr);
+
+
 extern void ObjectSet(ValuePtr ptr, const char* key, ValuePtr val_ptr);
 extern void ObjectSetIdx(ValuePtr ptr, uint32_t idx, ValuePtr val_ptr);
 extern RtnValue ObjectGet(ValuePtr ptr, const char* key);
@@ -178,8 +255,11 @@ ValuePtr PromiseThen2(ValuePtr ptr, int on_fulfilled_ref, int on_rejected_ref);
 ValuePtr PromiseCatch(ValuePtr ptr, int callback_ref);
 extern ValuePtr PromiseResult(ValuePtr ptr);
 
-extern RtnValue FunctionCall(ValuePtr ptr, int argc, ValuePtr argv[]);
-
+//extern RtnValue FunctionCall(ValuePtr ptr, int argc, ValuePtr argv[]);
+extern RtnValue FunctionCall(ValuePtr ptr,
+                             ValuePtr recv,
+                             int argc,
+                             ValuePtr argv[]);
 extern ValuePtr ExceptionError(IsolatePtr iso_ptr, const char* message);
 extern ValuePtr ExceptionRangeError(IsolatePtr iso_ptr, const char* message);
 extern ValuePtr ExceptionReferenceError(IsolatePtr iso_ptr,

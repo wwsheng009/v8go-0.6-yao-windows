@@ -15,8 +15,9 @@ type Function struct {
 	*Value
 }
 
+/*
 // Call this JavaScript function with the given arguments.
-func (fn *Function) Call(args ...Valuer) (*Value, error) {
+func (fn *Function) CallXXXXXXXXXXXX(args ...Valuer) (*Value, error) {
 	var argptr *C.ValuePtr
 	if len(args) > 0 {
 		var cArgs = make([]C.ValuePtr, len(args))
@@ -29,4 +30,21 @@ func (fn *Function) Call(args ...Valuer) (*Value, error) {
 	rtn := C.FunctionCall(fn.ptr, C.int(len(args)), argptr)
 	fn.ctx.deregister()
 	return getValue(fn.ctx, rtn), getError(rtn)
+}
+*/
+// Call this JavaScript function with the given arguments.
+func (fn *Function) Call(recv Valuer, args ...Valuer) (*Value, error) {
+	var argptr *C.ValuePtr
+	// fmt.Println("00@@@@@@@@@@@@function.go.Call")
+	if len(args) > 0 {
+		var cArgs = make([]C.ValuePtr, len(args))
+		for i, arg := range args {
+			cArgs[i] = arg.value().ptr
+		}
+		argptr = (*C.ValuePtr)(unsafe.Pointer(&cArgs[0]))
+	}
+	fn.ctx.register()
+	rtn := C.FunctionCall(fn.ptr, recv.value().ptr, C.int(len(args)), argptr)
+	fn.ctx.deregister()
+	return valueResult(fn.ctx, rtn)
 }
