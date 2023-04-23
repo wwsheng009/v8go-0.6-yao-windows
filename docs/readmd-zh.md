@@ -4,6 +4,4 @@
 
 官方的 v8go 从 0.6.0 版本后就不再支持 windows 版本的编译。
 
-安装
-
-https://github.com/rogchap/v8go/archive/refs/tags/v0.6.0.zip
+这里跟官方版本会有一些差异，主要是为了适配 yao 而作的修改。
