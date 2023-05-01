@@ -17,19 +17,13 @@ import (
 func TestFunctionTemplate(t *testing.T) {
 	t.Parallel()
 
-	if _, err := v8go.NewFunctionTemplate(nil, func(*v8go.FunctionCallbackInfo) *v8go.Value { return nil }); err == nil {
-		t.Error("expected error but got <nil>")
-	}
+	v8go.NewFunctionTemplate(nil, func(*v8go.FunctionCallbackInfo) *v8go.Value { return nil })
 
-	iso, _ := v8go.NewIsolate()
-	if _, err := v8go.NewFunctionTemplate(iso, nil); err == nil {
-		t.Error("expected error but got <nil>")
-	}
+	iso := v8go.NewIsolate()
+	v8go.NewFunctionTemplate(iso, nil)
 
-	fn, err := v8go.NewFunctionTemplate(iso, func(*v8go.FunctionCallbackInfo) *v8go.Value { return nil })
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	fn := v8go.NewFunctionTemplate(iso, func(*v8go.FunctionCallbackInfo) *v8go.Value { return nil })
+
 	if fn == nil {
 		t.Error("expected FunctionTemplate, but got <nil>")
 	}
@@ -38,11 +32,11 @@ func TestFunctionTemplate(t *testing.T) {
 func TestFunctionTemplateGetFunction(t *testing.T) {
 	t.Parallel()
 
-	iso, _ := v8go.NewIsolate()
-	ctx, _ := v8go.NewContext(iso)
+	iso := v8go.NewIsolate()
+	ctx := v8go.NewContext(iso)
 
 	var args *v8go.FunctionCallbackInfo
-	tmpl, _ := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
+	tmpl := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
 		args = info
 		reply, _ := v8go.NewValue(iso, "hello")
 		return reply
@@ -65,24 +59,24 @@ func TestFunctionTemplateGetFunction(t *testing.T) {
 }
 
 func ExampleFunctionTemplate() {
-	iso, _ := v8go.NewIsolate()
-	global, _ := v8go.NewObjectTemplate(iso)
-	printfn, _ := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
+	iso := v8go.NewIsolate()
+	global := v8go.NewObjectTemplate(iso)
+	printfn := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
 		fmt.Printf("%+v\n", info.Args())
 		return nil
 	})
 	global.Set("print", printfn, v8go.ReadOnly)
-	ctx, _ := v8go.NewContext(iso, global)
+	ctx := v8go.NewContext(iso, global)
 	ctx.RunScript("print('foo', 'bar', 0, 1)", "")
 	// Output:
 	// [foo bar 0 1]
 }
 
 func ExampleFunctionTemplate_fetch() {
-	iso, _ := v8go.NewIsolate()
-	global, _ := v8go.NewObjectTemplate(iso)
+	iso := v8go.NewIsolate()
+	global := v8go.NewObjectTemplate(iso)
 
-	fetchfn, _ := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
+	fetchfn := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
 		args := info.Args()
 		url := args[0].String()
 
@@ -98,7 +92,7 @@ func ExampleFunctionTemplate_fetch() {
 	})
 	global.Set("fetch", fetchfn, v8go.ReadOnly)
 
-	ctx, _ := v8go.NewContext(iso, global)
+	ctx := v8go.NewContext(iso, global)
 	val, _ := ctx.RunScript("fetch('https://rogchap.com/v8go')", "")
 	prom, _ := val.AsPromise()
 

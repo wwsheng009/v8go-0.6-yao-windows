@@ -32,10 +32,10 @@ func (fn *Function) CallXXXXXXXXXXXX(args ...Valuer) (*Value, error) {
 	return getValue(fn.ctx, rtn), getError(rtn)
 }
 */
+
 // Call this JavaScript function with the given arguments.
 func (fn *Function) Call(recv Valuer, args ...Valuer) (*Value, error) {
 	var argptr *C.ValuePtr
-	// fmt.Println("00@@@@@@@@@@@@function.go.Call")
 	if len(args) > 0 {
 		var cArgs = make([]C.ValuePtr, len(args))
 		for i, arg := range args {

@@ -13,13 +13,13 @@ import (
 func TestFunctionCall(t *testing.T) {
 	t.Parallel()
 
-	ctx, err := v8go.NewContext()
-	failIf(t, err)
-	_, err = ctx.RunScript("function add(a, b) { return a + b; }", "")
-	failIf(t, err)
+	ctx := v8go.NewContext()
+
+	ctx.RunScript("function add(a, b) { return a + b; }", "")
+
 	addValue, err := ctx.Global().Get("add")
 	failIf(t, err)
-	iso, _ := ctx.Isolate()
+	iso := ctx.Isolate()
 
 	arg1, err := v8go.NewValue(iso, int32(1))
 	failIf(t, err)
@@ -36,24 +36,26 @@ func TestFunctionCall(t *testing.T) {
 func TestFunctionCallToGoFunc(t *testing.T) {
 	t.Parallel()
 
-	iso, _ := v8go.NewIsolate()
-	global, _ := v8go.NewObjectTemplate(iso)
+	iso := v8go.NewIsolate()
+	defer iso.Dispose()
+
+	global := v8go.NewObjectTemplate(iso)
 
 	called := false
-	printfn, _ := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
+	printfn := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
 		called = true
 		return nil
 	})
 
 	global.Set("print", printfn, v8go.ReadOnly)
 
-	ctx, err := v8go.NewContext(iso, global)
-	failIf(t, err)
+	ctx := v8go.NewContext(iso, global)
+
 	val, err := ctx.RunScript(`(a, b) => { print("foo"); }`, "")
 	failIf(t, err)
 	fn, err := val.AsFunction()
 	failIf(t, err)
-	resultValue, err := fn.Call()
+	resultValue, err := fn.Call(v8go.Undefined(iso))
 	failIf(t, err)
 
 	if !called {
@@ -67,15 +69,18 @@ func TestFunctionCallToGoFunc(t *testing.T) {
 func TestFunctionCallError(t *testing.T) {
 	t.Parallel()
 
-	ctx, err := v8go.NewContext()
-	failIf(t, err)
-	_, err = ctx.RunScript("function throws() { throw 'error'; }", "script.js")
+	ctx := v8go.NewContext()
+	iso := ctx.Isolate()
+	defer iso.Dispose()
+	defer ctx.Close()
+
+	_, err := ctx.RunScript("function throws() { throw 'error'; }", "script.js")
 	failIf(t, err)
 	addValue, err := ctx.Global().Get("throws")
 	failIf(t, err)
 
 	fn, _ := addValue.AsFunction()
-	_, err = fn.Call()
+	_, err = fn.Call(v8go.Undefined(iso))
 	if err == nil {
 		t.Errorf("expected an error, got none")
 	}

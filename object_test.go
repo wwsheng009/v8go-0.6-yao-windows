@@ -14,7 +14,7 @@ import (
 func TestObjectSet(t *testing.T) {
 	t.Parallel()
 
-	ctx, _ := v8go.NewContext()
+	ctx := v8go.NewContext()
 	val, _ := ctx.RunScript("const foo = {}; foo", "")
 	obj, _ := val.AsObject()
 	obj.Set("bar", "baz")
@@ -37,7 +37,7 @@ func TestObjectSet(t *testing.T) {
 func TestObjectGet(t *testing.T) {
 	t.Parallel()
 
-	ctx, _ := v8go.NewContext()
+	ctx := v8go.NewContext()
 	val, _ := ctx.RunScript("const foo = { bar: 'baz'}; foo", "")
 	obj, _ := val.AsObject()
 	if bar, _ := obj.Get("bar"); bar.String() != "baz" {
@@ -58,7 +58,7 @@ func TestObjectGet(t *testing.T) {
 func TestObjectHas(t *testing.T) {
 	t.Parallel()
 
-	ctx, _ := v8go.NewContext()
+	ctx := v8go.NewContext()
 	val, _ := ctx.RunScript("const foo = {a: 1, '2': 2}; foo", "")
 	obj, _ := val.AsObject()
 	if !obj.Has("a") {
@@ -78,7 +78,7 @@ func TestObjectHas(t *testing.T) {
 func TestObjectDelete(t *testing.T) {
 	t.Parallel()
 
-	ctx, _ := v8go.NewContext()
+	ctx := v8go.NewContext()
 	val, _ := ctx.RunScript("const foo = { bar: 'baz', '2': 2}; foo", "")
 	obj, _ := val.AsObject()
 	if !obj.Has("bar") {
@@ -97,12 +97,12 @@ func TestObjectDelete(t *testing.T) {
 }
 
 func ExampleObject_global() {
-	iso, _ := v8go.NewIsolate()
-	ctx, _ := v8go.NewContext(iso)
+	iso := v8go.NewIsolate()
+	ctx := v8go.NewContext(iso)
 	global := ctx.Global()
 
-	console, _ := v8go.NewObjectTemplate(iso)
-	logfn, _ := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
+	console := v8go.NewObjectTemplate(iso)
+	logfn := v8go.NewFunctionTemplate(iso, func(info *v8go.FunctionCallbackInfo) *v8go.Value {
 		fmt.Println(info.Args()[0])
 		return nil
 	})
