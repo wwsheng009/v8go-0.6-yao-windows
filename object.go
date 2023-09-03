@@ -8,7 +8,6 @@ package v8go
 // #include "v8go.h"
 import "C"
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"unsafe"
@@ -92,10 +91,20 @@ func (o *Object) GetInternalField(idx uint32) *Value {
 // If the value passed is a Go supported primitive (string, int32, uint32, int64, uint64, float64, big.Int)
 // then a *Value will be created and set as the value property.
 func (o *Object) Set(key string, val interface{}) error {
-	if len(key) == 0 {
-		return errors.New("v8go: You must provide a valid property key")
+	value, err := coerceValue(o.ctx.iso, val)
+	if err != nil {
+		return err
 	}
-	return set(o, key, 0, val)
+
+	ckey := C.CString(key)
+	defer C.free(unsafe.Pointer(ckey))
+	C.ObjectSet(o.ptr, ckey, value.ptr)
+	return nil
+
+	// if len(key) == 0 {
+	// 	return errors.New("v8go: You must provide a valid property key")
+	// }
+	// return set(o, key, 0, val)
 }
 
 // Set will set a given index on the Object to a given value.
@@ -103,8 +112,34 @@ func (o *Object) Set(key string, val interface{}) error {
 // If the value passed is a Go supported primitive (string, int32, uint32, int64, uint64, float64, big.Int)
 // then a *Value will be created and set as the value property.
 func (o *Object) SetIdx(idx uint32, val interface{}) error {
-	return set(o, "", idx, val)
+	value, err := coerceValue(o.ctx.iso, val)
+	if err != nil {
+		return err
+	}
+
+	C.ObjectSetIdx(o.ptr, C.uint32_t(idx), value.ptr)
+
+	return nil
+	// return set(o, "", idx, val)
 }
+
+// SetInternalField sets the value of an internal field for an ObjectTemplate instance.
+// Panics if the index isn't in the range set by (*ObjectTemplate).SetInternalFieldCount.
+// func (o *Object) SetInternalField(idx uint32, val interface{}) error {
+// 	value, err := coerceValue(o.ctx.iso, val)
+
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	inserted := C.ObjectSetInternalField(o.ptr, C.int(idx), value.ptr)
+
+// 	if inserted == 0 {
+// 		panic(fmt.Errorf("index out of range [%v] with length %v", idx, o.InternalFieldCount()))
+// 	}
+
+// 	return nil
+// }
 
 func set(o *Object, key string, idx uint32, val interface{}) error {
 	var value *Value

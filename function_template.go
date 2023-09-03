@@ -38,6 +38,13 @@ func (i *FunctionCallbackInfo) Args() []*Value {
 	return i.args
 }
 
+func (i *FunctionCallbackInfo) Release() {
+	for _, arg := range i.args {
+		arg.Release()
+	}
+	i.this.Release()
+}
+
 // FunctionTemplate is used to create functions at runtime.
 // There can only be one function created from a FunctionTemplate in a context.
 // The lifetime of the created function is equal to the lifetime of the context.
@@ -87,6 +94,13 @@ func NewFunctionTemplate(iso *Isolate, callback FunctionCallback) *FunctionTempl
 func (tmpl *FunctionTemplate) GetFunction(ctx *Context) *Function {
 	val_ptr := C.FunctionTemplateGetFunction(tmpl.ptr, ctx.ptr)
 	return &Function{&Value{val_ptr, ctx}}
+	// rtn := C.FunctionTemplateGetFunction(tmpl.ptr, ctx.ptr)
+	// runtime.KeepAlive(tmpl)
+	// val, err := valueResult(ctx, rtn)
+	// if err != nil {
+	// 	panic(err) // TODO: Consider returning the error
+	// }
+	// return &Function{val}
 }
 
 //export goFunctionCallback

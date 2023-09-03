@@ -8,6 +8,7 @@ package v8go
 // #include "v8go.h"
 import "C"
 import (
+	"runtime"
 	"sync"
 	"unsafe"
 )
@@ -72,6 +73,8 @@ func NewContext(opt ...ContextOption) *Context {
 		ptr: C.NewContext(opts.iso.ptr, opts.gTmpl.ptr, C.int(ref)),
 		iso: opts.iso,
 	}
+	ctx.register()
+	runtime.KeepAlive(opts.gTmpl)
 	// TODO: [RC] catch any C++ exceptions and return as error
 	return ctx
 }
@@ -98,11 +101,13 @@ func (c *Context) RunScript(source string, origin string) (*Value, error) {
 	defer C.free(unsafe.Pointer(cSource))
 	defer C.free(unsafe.Pointer(cOrigin))
 
-	c.register()
 	rtn := C.RunScript(c.ptr, cSource, cOrigin)
-	c.deregister()
+	return valueResult(c, rtn)
+	// c.register()
+	// rtn := C.RunScript(c.ptr, cSource, cOrigin)
+	// c.deregister()
 
-	return getValue(c, rtn), getError(rtn)
+	// return getValue(c, rtn), getError(rtn)
 }
 
 // Global returns the global proxy object.
@@ -121,14 +126,15 @@ func (c *Context) Global() *Object {
 // PerformMicrotaskCheckpoint runs the default MicrotaskQueue until empty.
 // This is used to make progress on Promises.
 func (c *Context) PerformMicrotaskCheckpoint() {
-	c.register()
-	defer c.deregister()
+	// c.register()
+	// defer c.deregister()
 	C.IsolatePerformMicrotaskCheckpoint(c.iso.ptr)
 }
 
 // Close will dispose the context and free the memory.
 // Access to any values assosiated with the context after calling Close may panic.
 func (c *Context) Close() {
+	c.deregister()
 	C.ContextFree(c.ptr)
 	c.ptr = nil
 }
@@ -201,4 +207,11 @@ func valueResult(ctx *Context, rtn C.RtnValue) (*Value, error) {
 		return nil, newJSError(rtn.error)
 	}
 	return &Value{rtn.value, ctx}, nil
+}
+
+func objectResult(ctx *Context, rtn C.RtnValue) (*Object, error) {
+	if rtn.value == nil {
+		return nil, newJSError(rtn.error)
+	}
+	return &Object{&Value{rtn.value, ctx}}, nil
 }

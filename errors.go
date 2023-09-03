@@ -37,6 +37,7 @@ func newJSError(rtnErr C.RtnError) error {
 	C.free(unsafe.Pointer(rtnErr.stack))
 	return err
 }
+
 // Format implements the fmt.Formatter interface to provide a custom formatter
 // primarily to output the javascript stack trace with %+v
 func (e *JSError) Format(s fmt.State, verb rune) {
@@ -44,6 +45,12 @@ func (e *JSError) Format(s fmt.State, verb rune) {
 	case 'v':
 		if s.Flag('+') && e.StackTrace != "" {
 			io.WriteString(s, e.StackTrace)
+			// If it was a compile time error, then there wouldn't be a runtime stack trace,
+			// but StackTrace will still include the Message, making them equal. In this case,
+			// we want to include the Location where the compilation failed.
+			if e.StackTrace == e.Message && e.Location != "" {
+				fmt.Fprintf(s, " (at %s)", e.Location)
+			}
 			return
 		}
 		fallthrough
