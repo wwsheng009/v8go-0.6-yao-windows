@@ -52,6 +52,11 @@ func (e *JSError) Format(s fmt.State, verb rune) {
 				fmt.Fprintf(s, " (at %s)", e.Location)
 			}
 			return
+		} else if s.Flag('+') && e.Location != "" {
+			//StackTrace is empty but location is not empty, so print location
+			io.WriteString(s, e.Message)
+			fmt.Fprintf(s, " (at %s)", e.Location)
+			return
 		}
 		fallthrough
 	case 's':
