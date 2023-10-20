@@ -42,23 +42,27 @@ func newValueUndefined(iso *Isolate) *Value {
 		ptr: C.NewValueUndefined(iso.ptr),
 	}
 }
+
 // Null returns the `null` JS value
 func Null(iso *Isolate) *Value {
 	return iso.null
 }
+
 // Undefined returns the `undefined` JS value
 func Undefined(iso *Isolate) *Value {
 	return iso.undefined
 }
+
 // NewValue will create a primitive value. Supported values types to create are:
-//   string -> V8::String
-//   int32 -> V8::Integer
-//   uint32 -> V8::Integer
-//   bool -> V8::Boolean
-//   int64 -> V8::BigInt
-//   uint64 -> V8::BigInt
-//   bool -> V8::Boolean
-//   *big.Int -> V8::BigInt
+//
+//	string -> V8::String
+//	int32 -> V8::Integer
+//	uint32 -> V8::Integer
+//	bool -> V8::Boolean
+//	int64 -> V8::BigInt
+//	uint64 -> V8::BigInt
+//	bool -> V8::Boolean
+//	*big.Int -> V8::BigInt
 func NewValue(iso *Isolate, val interface{}) (*Value, error) {
 	if iso == nil {
 		return nil, errors.New("v8go: failed to create new Value: Isolate cannot be <nil>")
@@ -562,12 +566,22 @@ func (v *Value) MarshalJSON() ([]byte, error) {
 	}
 	return []byte(jsonStr), nil
 }
+
+func (v *Value) SharedArrayBufferGetContents() ([]byte, func(), error) {
+	if !v.IsSharedArrayBuffer() {
+		return nil, nil, errors.New("v8go: value is not a SharedArrayBuffer")
+	}
+	return nil, nil, errors.New("v8go: not Supported")
+
+}
+
 // Uint8Array as bytes
 func (v *Value) Uint8Array() []uint8 {
 	bytes := unsafe.Pointer(C.ValueToUint8Array(v.ptr)) // allocates copy on the heap
 	defer C.free(bytes)
 	return C.GoBytes(bytes, C.int(C.ValueToArrayLength(v.ptr)))
 }
+
 // Release this value.  Using the value after calling this function will result in undefined behavior.
 func (v *Value) Release() {
 	C.ValueRelease(v.ptr)
