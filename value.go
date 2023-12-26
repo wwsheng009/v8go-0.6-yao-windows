@@ -77,6 +77,10 @@ func NewValue(iso *Isolate, val interface{}) (*Value, error) {
 		rtnVal = &Value{
 			ptr: C.NewValueString(iso.ptr, cstr),
 		}
+	case []uint8:
+		rtnVal = &Value{
+			ptr: C.NewValueUint8Array(iso.ptr, (*C.uchar)(C.CBytes(v)), C.int(len(v))),
+		}
 	case int32:
 		rtnVal = &Value{
 			ptr: C.NewValueInteger(iso.ptr, C.int(v)),
@@ -239,6 +243,13 @@ func (v *Value) String() string {
 	s := C.ValueToString(v.ptr)
 	defer C.free(unsafe.Pointer(s))
 	return C.GoString(s)
+}
+
+// Uint8Array as bytes
+func (v *Value) Uint8Array() []uint8 {
+	bytes := unsafe.Pointer(C.ValueToUint8Array(v.ptr)) // allocates copy on the heap
+	defer C.free(bytes)
+	return C.GoBytes(bytes, C.int(C.ValueToArrayLength(v.ptr)))
 }
 
 // Uint32 perform the equivalent of `Number(value)` in JS and convert the result to an
@@ -573,13 +584,6 @@ func (v *Value) SharedArrayBufferGetContents() ([]byte, func(), error) {
 	}
 	return nil, nil, errors.New("v8go: not Supported")
 
-}
-
-// Uint8Array as bytes
-func (v *Value) Uint8Array() []uint8 {
-	bytes := unsafe.Pointer(C.ValueToUint8Array(v.ptr)) // allocates copy on the heap
-	defer C.free(bytes)
-	return C.GoBytes(bytes, C.int(C.ValueToArrayLength(v.ptr)))
 }
 
 // Release this value.  Using the value after calling this function will result in undefined behavior.

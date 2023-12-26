@@ -81,15 +81,13 @@ func NewContext(opt ...ContextOption) *Context {
 
 // Isolate gets the current context's parent isolate.An  error is returned
 // if the isolate has been terninated.
-func (c *Context) IsolateXXXXXXXXXXXX() (*Isolate, error) {
-	// TODO: [RC] check to see if the isolate has not been terninated
-	return c.iso, nil
-}
-
-// Isolate gets the current context's parent isolate.An  error is returned
-// if the isolate has been terninated.
 func (c *Context) Isolate() *Isolate {
 	return c.iso
+}
+func (c *Context) RetainedValueCount() int {
+	ctxMutex.Lock()
+	defer ctxMutex.Unlock()
+	return int(C.ContextRetainedValueCount(c.ptr))
 }
 
 // RunScript executes the source JavaScript; origin or filename provides a
