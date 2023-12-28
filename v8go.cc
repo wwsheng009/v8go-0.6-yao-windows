@@ -265,8 +265,8 @@ extern "C"
     ctx->ptr.Reset(iso, Context::New(iso));
     ctx->iso = iso;
     iso->SetData(0, ctx);
-
-    return static_cast<IsolatePtr>(iso);
+    return iso;
+    // return static_cast<IsolatePtr>(iso);
   }
 
   static inline m_ctx *isolateInternalContext(Isolate *iso)
@@ -341,50 +341,51 @@ extern "C"
 
   /********** Template **********/
 
-#define LOCAL_TEMPLATE(ptr)                        \
-  m_template *ot = static_cast<m_template *>(ptr); \
-  Isolate *iso = ot->iso;                          \
-  Locker locker(iso);                              \
-  Isolate::Scope isolate_scope(iso);               \
-  HandleScope handle_scope(iso);                   \
-  Local<Template> tmpl = ot->ptr.Get(iso);
+#define LOCAL_TEMPLATE(tmpl_ptr)     \
+  Isolate *iso = tmpl_ptr->iso;      \
+  Locker locker(iso);                \
+  Isolate::Scope isolate_scope(iso); \
+  HandleScope handle_scope(iso);     \
+  Local<Template> tmpl = tmpl_ptr->ptr.Get(iso);
 
-  void TemplateFree(TemplatePtr ptr)
+  void TemplateFree(TemplatePtr tmpl)
   {
-    delete static_cast<m_template *>(ptr);
+    tmpl->ptr.Empty();
+    delete tmpl;
+    // delete static_cast<m_template *>(ptr);
   }
 
   void TemplateSetValue(TemplatePtr ptr,
                         const char *name,
-                        ValuePtr val_ptr,
+                        ValuePtr val,
                         int attributes)
   {
     LOCAL_TEMPLATE(ptr);
 
     Local<String> prop_name =
         String::NewFromUtf8(iso, name, NewStringType::kNormal).ToLocalChecked();
-    m_value *val = static_cast<m_value *>(val_ptr);
+    // m_value *val = static_cast<m_value *>(val_ptr);
     tmpl->Set(prop_name, val->ptr.Get(iso), (PropertyAttribute)attributes);
   }
 
   void TemplateSetTemplate(TemplatePtr ptr,
                            const char *name,
-                           TemplatePtr obj_ptr,
+                           TemplatePtr obj,
                            int attributes)
   {
     LOCAL_TEMPLATE(ptr);
 
     Local<String> prop_name =
         String::NewFromUtf8(iso, name, NewStringType::kNormal).ToLocalChecked();
-    m_template *obj = static_cast<m_template *>(obj_ptr);
+    // m_template *obj = static_cast<m_template *>(obj_ptr);
     tmpl->Set(prop_name, obj->ptr.Get(iso), (PropertyAttribute)attributes);
   }
 
   /********** ObjectTemplate **********/
 
-  TemplatePtr NewObjectTemplate(IsolatePtr iso_ptr)
+  TemplatePtr NewObjectTemplate(IsolatePtr iso)
   {
-    Isolate *iso = static_cast<Isolate *>(iso_ptr);
+    // Isolate *iso = static_cast<Isolate *>(iso_ptr);
     Locker locker(iso);
     Isolate::Scope isolate_scope(iso);
     HandleScope handle_scope(iso);
@@ -392,7 +393,8 @@ extern "C"
     m_template *ot = new m_template;
     ot->iso = iso;
     ot->ptr.Reset(iso, ObjectTemplate::New(iso));
-    return static_cast<TemplatePtr>(ot);
+    return ot;
+    // return static_cast<TemplatePtr>(ot);
   }
 
   ValuePtr ObjectTemplateNewInstance(TemplatePtr ptr, ContextPtr ctx_ptr)
@@ -656,13 +658,13 @@ extern "C"
     return rtn;
   }
 
-  const char *JSONStringify(ContextPtr ctx_ptr, ValuePtr val_ptr)
+  const char *JSONStringify(ContextPtr ctx, ValuePtr val)
   {
     Isolate *iso;
     Local<Context> local_ctx;
 
-    m_value *val = static_cast<m_value *>(val_ptr);
-    m_ctx *ctx = static_cast<m_ctx *>(ctx_ptr);
+    // m_value *val = static_cast<m_value *>(val_ptr);
+    // m_ctx *ctx = static_cast<m_ctx *>(ctx_ptr);
 
     if (ctx != nullptr)
     {
@@ -689,7 +691,7 @@ extern "C"
       }
       else
       {
-        m_ctx *ctx = static_cast<m_ctx *>(iso->GetData(0));
+        m_ctx *ctx = isolateInternalContext(iso);
         local_ctx = ctx->ptr.Get(iso);
       }
     }
@@ -720,25 +722,24 @@ extern "C"
 
   /********** Value **********/
 
-#define LOCAL_VALUE(ptr)                         \
-  m_value *val = static_cast<m_value *>(ptr);    \
-  Isolate *iso = val->iso;                       \
-  Locker locker(iso);                            \
-  Isolate::Scope isolate_scope(iso);             \
-  HandleScope handle_scope(iso);                 \
-  TryCatch try_catch(iso);                       \
-  m_ctx *ctx = val->ctx;                         \
-  Local<Context> local_ctx;                      \
-  if (ctx != nullptr)                            \
-  {                                              \
-    local_ctx = ctx->ptr.Get(iso);               \
-  }                                              \
-  else                                           \
-  {                                              \
-    ctx = static_cast<m_ctx *>(iso->GetData(0)); \
-    local_ctx = ctx->ptr.Get(iso);               \
-  }                                              \
-  Context::Scope context_scope(local_ctx);       \
+#define LOCAL_VALUE(val)                   \
+  Isolate *iso = val->iso;                 \
+  Locker locker(iso);                      \
+  Isolate::Scope isolate_scope(iso);       \
+  HandleScope handle_scope(iso);           \
+  TryCatch try_catch(iso);                 \
+  m_ctx *ctx = val->ctx;                   \
+  Local<Context> local_ctx;                \
+  if (ctx != nullptr)                      \
+  {                                        \
+    local_ctx = ctx->ptr.Get(iso);         \
+  }                                        \
+  else                                     \
+  {                                        \
+    ctx = isolateInternalContext(iso);     \
+    local_ctx = ctx->ptr.Get(iso);         \
+  }                                        \
+  Context::Scope context_scope(local_ctx); \
   Local<Value> value = val->ptr.Get(iso);
 
   RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso,

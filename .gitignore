@@ -6,3 +6,5 @@
 .gclient_entries
 
 c.out
+.vs
+.vscode

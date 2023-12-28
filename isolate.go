@@ -51,9 +51,7 @@ type HeapStatistics struct {
 // An *Isolate can be used as a v8go.ContextOption to create a new
 // Context, rather than creating a new default Isolate.
 func NewIsolate() *Isolate {
-	v8once.Do(func() {
-		C.Init()
-	})
+	initializeIfNecessary()
 	iso := &Isolate{
 		ptr: C.NewIsolate(),
 		cbs: make(map[int]FunctionCallback),
@@ -140,6 +138,7 @@ func (i *Isolate) Dispose() {
 	}
 	C.IsolateDispose(i.ptr)
 	i.ptr = nil
+	i.cbs = nil //内存泄露点，需要加上
 }
 
 // ThrowException schedules an exception to be thrown when returning to
