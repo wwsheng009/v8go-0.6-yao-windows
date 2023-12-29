@@ -1,13 +1,5 @@
 # Execute JavaScript from Go
 
-## 警告
-
-此项目只是为了在 windows 平台调试，测试 yao 应用。
-
-v8go windows for yao,目前存在无法解决的问题是:
-
-当有 yao 中调用 context.close 或是 isolate.close 时会有内存泄露。
-
 ## 介绍
 
 <a href="https://github.com/rogchap/v8go/releases"><img src="https://img.shields.io/github/v/release/rogchap/v8go" alt="Github release"></a>
