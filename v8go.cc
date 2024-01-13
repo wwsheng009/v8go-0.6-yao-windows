@@ -889,13 +889,15 @@ extern "C"
     Local<Context> local_ctx = ctx->ptr.Get(iso);
     Context::Scope context_scope(local_ctx);
 
-    std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(
-        static_cast<void *>(const_cast<uint8_t *>(v)), len,
-        [](void *data, size_t length, void *deleter_data)
-        {
-          free(data);
-        },
-        nullptr);
+    std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(iso, len);
+
+    if (!bs)
+    {
+      // Handle the allocation failure
+      return nullptr;
+    }
+
+    memcpy(bs->Data(), v, len);
 
     Local<ArrayBuffer> arbuf = ArrayBuffer::New(iso, std::move(bs));
 
