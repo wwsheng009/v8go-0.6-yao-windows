@@ -176,6 +176,7 @@ typedef const v8ScriptCompilerCachedData *ScriptCompilerCachedDataPtr;
                                           int sign_bit,
                                           int word_count,
                                           const uint64_t *words);
+  extern ValuePtr NewValueExternal(IsolatePtr iso_ptr, void *v); // Yao App Engine: Implement NewValueExternal to Share Golang Structs
 
   void ValueRelease(ValuePtr ptr);
   extern uint8_t *ValueToUint8Array(ValuePtr ptr);
@@ -190,6 +191,7 @@ typedef const v8ScriptCompilerCachedData *ScriptCompilerCachedDataPtr;
   double ValueToNumber(ValuePtr ptr);
   const char *ValueToDetailString(ValuePtr ptr);
   uint32_t ValueToUint32(ValuePtr ptr);
+  uint64_t ValueToExternal(ValuePtr ptr); // Yao App Engine: Implement ValueToExternal to Share Golang Structs
   extern ValueBigInt ValueToBigInt(ValuePtr ptr);
   extern ValuePtr ValueToObject(ValuePtr ptr);
   int ValueIsUndefined(ValuePtr ptr);

@@ -588,5 +588,9 @@ func (v *Value) SharedArrayBufferGetContents() ([]byte, func(), error) {
 
 // Release this value.  Using the value after calling this function will result in undefined behavior.
 func (v *Value) Release() {
+	// Yao: Before releasing the value, we need to release the external object
+	// if it is an external object.
+	v.ReleaseExternal()
+	
 	C.ValueRelease(v.ptr)
 }
