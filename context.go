@@ -137,6 +137,10 @@ func (c *Context) Close() {
 	c.ptr = nil
 }
 
+func (c *Context) IsClosed() bool {
+	return c == nil || c.ptr == nil
+}
+
 func (c *Context) register() {
 	ctxMutex.Lock()
 	r := ctxRegistry[c.ref]
