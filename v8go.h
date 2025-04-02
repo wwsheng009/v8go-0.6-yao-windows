@@ -277,6 +277,8 @@ typedef const v8ScriptCompilerCachedData *ScriptCompilerCachedDataPtr;
                                ValuePtr recv,
                                int argc,
                                ValuePtr argv[]);
+  RtnValue FunctionNewInstance(ValuePtr ptr, int argc, ValuePtr args[]);
+
   extern ValuePtr ExceptionError(IsolatePtr iso_ptr, const char *message);
   extern ValuePtr ExceptionRangeError(IsolatePtr iso_ptr, const char *message);
   extern ValuePtr ExceptionReferenceError(IsolatePtr iso_ptr,

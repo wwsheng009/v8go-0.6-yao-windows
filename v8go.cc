@@ -457,9 +457,9 @@ extern "C"
                               iso, info.This()));
 
     int args_count = info.Length();
-    ValuePtr thisAndArgs[args_count + 1];
+    std::vector<ValuePtr> thisAndArgs(args_count + 1);
     thisAndArgs[0] = tracked_value(ctx, _this);
-    ValuePtr *args = thisAndArgs + 1;
+    ValuePtr *args = thisAndArgs.data() + 1;
     for (int i = 0; i < args_count; i++)
     {
       m_value *val = new m_value;
@@ -474,7 +474,7 @@ extern "C"
     ValuePtr goFunctionCallback(int ctxref, int cbref, const ValuePtr *args,
                                 int args_count);
     ValuePtr val_ptr =
-        goFunctionCallback(ctx_ref, callback_ref, thisAndArgs, args_count);
+        goFunctionCallback(ctx_ref, callback_ref, thisAndArgs.data(), args_count);
     if (val_ptr != nullptr)
     {
       m_value *val = static_cast<m_value *>(val_ptr);
@@ -1729,14 +1729,15 @@ extern "C"
 
   /********** Function **********/
   static void buildCallArguments(Isolate *iso,
-                                 Local<Value> *argv,
+                                 std::vector<Local<Value>> &argv,
                                  int argc,
                                  ValuePtr args[])
   {
+    argv.resize(argc);
     for (int i = 0; i < argc; i++)
     {
-      m_value *arg = static_cast<m_value *>(args[i]);
-      argv[i] = arg->ptr.Get(iso);
+      // m_value *arg = static_cast<m_value *>(args[i]);
+      argv[i] = args[i]->ptr.Get(iso);
     }
   }
   /*
@@ -1769,7 +1770,7 @@ extern "C"
 
     RtnValue rtn = {};
     Local<Function> fn = Local<Function>::Cast(value);
-    Local<Value> argv[argc];
+    std::vector<Local<Value>> argv;
     buildCallArguments(iso, argv, argc, args);
 
     m_value *t_recv = static_cast<m_value *>(recv_ptr);
@@ -1777,7 +1778,29 @@ extern "C"
     Local<Value> local_recv = t_recv->ptr.Get(iso);
 
     Local<Value> result;
-    if (!fn->Call(local_ctx, local_recv, argc, argv).ToLocal(&result))
+    if (!fn->Call(local_ctx, local_recv, argc, argv.data()).ToLocal(&result))
+    {
+      rtn.error = ExceptionError(try_catch, iso, local_ctx);
+      return rtn;
+    }
+    m_value *rtnval = new m_value;
+    rtnval->id = 0;
+    rtnval->iso = iso;
+    rtnval->ctx = ctx;
+    rtnval->ptr = Persistent<Value, CopyablePersistentTraits<Value>>(iso, result);
+    rtn.value = tracked_value(ctx, rtnval);
+    return rtn;
+  }
+
+  RtnValue FunctionNewInstance(ValuePtr ptr, int argc, ValuePtr args[])
+  {
+    LOCAL_VALUE(ptr)
+    RtnValue rtn = {};
+    Local<Function> fn = Local<Function>::Cast(value);
+    std::vector<Local<Value>> argv;
+    buildCallArguments(iso, argv, argc, args);
+    Local<Object> result;
+    if (!fn->NewInstance(local_ctx, argc, argv.data()).ToLocal(&result))
     {
       rtn.error = ExceptionError(try_catch, iso, local_ctx);
       return rtn;
