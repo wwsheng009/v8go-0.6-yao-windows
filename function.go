@@ -48,3 +48,17 @@ func (fn *Function) Call(recv Valuer, args ...Valuer) (*Value, error) {
 	fn.ctx.deregister()
 	return valueResult(fn.ctx, rtn)
 }
+
+// Invoke a constructor function to create an object instance.
+func (fn *Function) NewInstance(args ...Valuer) (*Object, error) {
+	var argptr *C.ValuePtr
+	if len(args) > 0 {
+		var cArgs = make([]C.ValuePtr, len(args))
+		for i, arg := range args {
+			cArgs[i] = arg.value().ptr
+		}
+		argptr = (*C.ValuePtr)(unsafe.Pointer(&cArgs[0]))
+	}
+	rtn := C.FunctionNewInstance(fn.ptr, C.int(len(args)), argptr)
+	return objectResult(fn.ctx, rtn)
+}
